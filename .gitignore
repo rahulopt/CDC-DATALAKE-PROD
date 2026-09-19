@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+
+# Spark / Iceberg local
+warehouse/
+spark-warehouse/
+metastore_db/
+derby.log
+*.crc
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Secrets / credentials  (NEVER commit)
+*.pem
+*.key
+.env
+.env.*
+*credentials*
+*secret*
+*.tfvars
+!example.tfvars
+!*.example.tfvars
+
+# Build artifacts
+dist/
+build/
+*.zip
+!lambda/**/*.zip
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp

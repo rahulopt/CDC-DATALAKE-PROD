@@ -1,0 +1,21 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra -q"
+markers = [
+    "iceberg: tests that require the Iceberg Spark runtime jar (may download / need network)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+extend-exclude = [".venv", "warehouse"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "B"]
+# E501 handled by line-length; allow long SQL strings in job files.
+ignore = ["E501"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39"]

@@ -1,0 +1,18 @@
+# ---------------------------------------------------------------------------
+# Runtime dependencies for local development, unit testing and Lambda helpers.
+#
+# NOTE on Spark versions:
+#   * AWS Glue 4.0 runs **Spark 3.3.0 / Python 3.10** and supplies Iceberg via
+#     the `--datalake-formats iceberg` job parameter (not pip).
+#   * For LOCAL unit tests we pin `pyspark==3.5.3`. Spark 3.3.0 predates full
+#     Python 3.11/3.12 support (its bundled cloudpickle breaks on newer
+#     bytecode) and is not compatible with Java 21. 3.5.3 runs on modern
+#     Python + Java while exposing the *identical* DataFrame / Window / SQL
+#     MERGE APIs this codebase uses, so tests validate the same logic that
+#     runs on Glue. The matching Iceberg runtime for local e2e tests is
+#     `iceberg-spark-runtime-3.5_2.12` (see tests/test_cdc_merge_e2e.py).
+# ---------------------------------------------------------------------------
+pyspark==3.5.3
+boto3>=1.34.0
+botocore>=1.34.0
+PyYAML>=6.0
