@@ -97,7 +97,7 @@ ACID MERGE, snapshot isolation, schema evolution (`ADD COLUMN`), and time travel
 Glue jobs use the Glue Data Catalog Iceberg catalog (`glue_catalog`) with
 `S3FileIO`. Maintenance job compacts small files and expires snapshots/orphans.
 
-## 8. Idempotency (req 9)
+## 8. Idempotency 
 
 * An `_applied_batches` Iceberg ledger records `(batch_id, table_name)`; a
   re-run of the same batch is skipped.
@@ -105,14 +105,14 @@ Glue jobs use the Glue Data Catalog Iceberg catalog (`glue_catalog`) with
 * MERGE itself is idempotent (re-applying the same newest row is a no-op).
 * Verified by `tests/test_cdc_merge_e2e.py::test_idempotent_reapply`.
 
-## 9. Ordering (req 8)
+## 9. Ordering
 
 `ordering.py` ranks rows by `__commit_ts, __txn_id, __seq` (desc, nulls last)
 so the newest source change wins regardless of arrival order. `guard_stale_updates`
 additionally drops *late* events (later batch, older commit ts) that would
 regress Silver (e.g. DELIVERED → SHIPPED). Covered by `tests/test_ordering.py`.
 
-## 10. Schema evolution (req 13)
+## 10. Schema evolution 
 
 `schema.diff_schema` classifies changes:
 * **additive** (new column, widening) → `ALTER TABLE ADD COLUMN` and continue.
@@ -120,7 +120,7 @@ regress Silver (e.g. DELIVERED → SHIPPED). Covered by `tests/test_ordering.py`
   audit record, publish an SNS `Schema-Breaking Change` alert, exit non-zero.
 Covered by `tests/test_schema_evolution.py`.
 
-## 11. Data quality & quarantine (req 11, 12)
+## 11. Data quality & quarantine 
 
 Declarative rules in `config/pipeline.yaml` (`not_null`, `non_negative`,
 `allowed_values`, `valid_timestamp`) + a structural op check. Invalid rows are
@@ -128,7 +128,7 @@ written to **S3 Reject** as `{original_event, error_reason, table_name,
 processing_time, batch_id}` — never silently dropped. DELETEs are exempt from
 payload rules (a delete may carry only the key). See `tests/test_validation.py`.
 
-## 12. Failure recovery & retries (req 15, 16)
+## 12. Failure recovery & retries 
 
 * Step Functions retries Glue/Lambda with exponential backoff (3 attempts).
 * Because processing is idempotent, retries are safe.
@@ -136,7 +136,7 @@ payload rules (a delete may carry only the key). See `tests/test_validation.py`.
   reads Bronze again; the ledger + MERGE keep state correct.
 * Any unrecovered failure → `notify` Lambda → SNS alert; FAILED audit row.
 
-## 13. Replay (req 17)
+## 13. Replay 
 
 Bronze is the immutable source of truth. Replay = re-run the Silver job over a
 Bronze prefix:
@@ -144,32 +144,32 @@ Bronze prefix:
 * **Batch / failed-batch** — a specific `batch_id`. To force reprocessing,
   delete that batch's row from `_applied_batches`.
 
-## 14. Orchestration (req 14)
+## 14. Orchestration 
 
 `orchestration/state_machine.asl.json`: `CheckInput` (Lambda) → `HasData`
 choice → `ProcessTables` (Map, per-table Silver MERGE via `glue:startJobRun.sync`
 with retries/catch) → `GoldAggregates` → success. Failures caught → `NotifyFailure`.
 Triggered every 15 min by EventBridge; nightly maintenance on a separate cron.
 
-## 15. Monitoring (req 20)
+## 15. Monitoring 
 
 CloudWatch alarms: Kinesis lag, Kinesis write throttle, Silver Glue failure,
 Step Functions failure — all → SNS. Dashboard shows Kinesis throughput/lag and
 Step Functions execution health. Per-batch counts land in DynamoDB.
 
-## 16. Notifications (req 21)
+## 16. Notifications 
 
 SNS, **critical-only** (failures, high lag, DQ failure, schema break, SLA). Happy
 path is tracked via CloudWatch/DynamoDB to avoid alert fatigue. Message format in
 `cdc_lib/notifications.py` and `lambda/notify`.
 
-## 17. Audit (req 19)
+## 17. Audit 
 
 `DynamoDB` item per batch: counts (source/processed/insert/update/delete/
 duplicate/reject), status, timings, error. PK `batch_table` (`batch#table`),
 GSI `by_table` for per-table history. Model in `cdc_lib/audit.py`.
 
-## 18. Security (req 22)
+## 18. Security 
 
 IAM least-privilege per role (Glue/DMS/SFN/EventBridge/Lambda), one KMS CMK
 encrypting everything, S3 Block Public Access + SSE-KMS + versioning, Secrets
@@ -177,7 +177,7 @@ Manager for DB creds, DMS via Secrets Manager, CloudWatch Logs encrypted. **No
 secrets in git** — `.gitignore` blocks `*.tfvars` (except examples), `.env`,
 keys, credential files.
 
-## 19. Terraform (req 23)
+## 19. Terraform 
 
 `terraform/` provisions everything. Layout: `providers • variables • storage
 (KMS/S3) • streaming_audit (Kinesis/DynamoDB/SNS/Secrets) • iam • glue • dms •
@@ -192,14 +192,14 @@ terraform plan  -var-file=example.tfvars
 terraform apply -var-file=example.tfvars
 ```
 
-## 20. CI/CD (req 24)
+## 20. CI/CD 
 
 `.github/workflows/ci-cd.yml`: on push/PR → unit tests + lint + `terraform
 validate`; on push to `main` → build artifacts + `terraform apply` (AWS via
 OIDC, no long-lived keys). Mirrors: Git Push → Tests → Lint → TF Validate →
 Build → Deploy.
 
-## 21. Testing (req 25)
+## 21. Testing 
 
 ```bash
 make install
@@ -216,14 +216,13 @@ scenarios from req 25 are exercised across `tests/`.
 > DataFrame/Window/SQL-MERGE APIs used are identical, so tests validate the same
 > logic. `make test` unsets a shadowing `SPARK_HOME` and prefers `openjdk@17`.
 
-## 22. Cost considerations (req 28)
-
+## 22. Cost considerations 
 DynamoDB on-demand; Kinesis provisioned + planned shards; S3 lifecycle tiering
 + expiry; CloudWatch log retention (`log_retention_days`); nightly Iceberg
 compaction to avoid small-file scan costs; Glue right-sized workers; Athena over
 compacted Gold to bound scans.
 
-## 23. Scalability (req 26)
+## 23. Scalability 
 
 Independent scaling: Kinesis shards, Glue workers (`glue_number_of_workers`),
 Step Functions `Map` concurrency across tables, Bronze/Iceberg partitioning.
