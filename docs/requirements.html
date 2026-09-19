@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Production-Grade CDC Data Lake Pipeline — Complete Requirements</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+         background:#f1f5f9; color:#1e293b; line-height:1.7; }
+  header { background:linear-gradient(135deg,#0f766e,#0891b2); color:#fff; padding:44px 32px; }
+  header .wrap { max-width:1040px; margin:0 auto; }
+  header h1 { margin:0 0 8px; font-size:32px; }
+  header p { margin:3px 0; opacity:.92; }
+  main { max-width:1040px; margin:-20px auto 60px; padding:0 20px; }
+  nav.toc { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px 26px;
+            margin:20px 0; box-shadow:0 4px 16px rgba(15,23,42,.05); }
+  nav.toc h2 { font-size:18px; margin:0 0 12px; }
+  nav.toc ol { columns:2; column-gap:32px; padding-left:20px; margin:0; }
+  nav.toc a { color:#0e7490; text-decoration:none; }
+  nav.toc a:hover { text-decoration:underline; }
+  section { background:#fff; border:1px solid #e2e8f0; border-radius:14px;
+            padding:24px 30px; margin:18px 0; box-shadow:0 4px 16px rgba(15,23,42,.05); scroll-margin-top:16px; }
+  h2 { font-size:22px; margin:0 0 14px; border-bottom:3px solid #0891b2;
+       display:inline-block; padding-bottom:4px; }
+  h3 { color:#0f766e; margin:18px 0 8px; }
+  table { width:100%; border-collapse:collapse; margin:12px 0; font-size:14px; }
+  th,td { border:1px solid #e2e8f0; padding:9px 12px; text-align:left; vertical-align:top; }
+  th { background:#f0fdfa; }
+  tr:nth-child(even) td { background:#f8fafc; }
+  code { background:#ecfeff; color:#0e7490; padding:2px 6px; border-radius:5px; font-size:13px; }
+  pre { background:#0f172a; color:#e2e8f0; padding:16px; border-radius:10px;
+        overflow-x:auto; font-size:13px; line-height:1.5; }
+  .pill { display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:600; }
+  .must  { background:#fee2e2; color:#b91c1c; }
+  .should{ background:#fef3c7; color:#b45309; }
+  .svc   { background:#e0e7ff; color:#4338ca; }
+  .flow { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:16px 0; }
+  .flow .node { background:#0f766e; color:#fff; padding:9px 14px; border-radius:8px; font-size:13px; text-align:center; }
+  .flow .arrow { color:#94a3b8; font-size:20px; }
+  .callout { border-left:4px solid #0891b2; background:#ecfeff; padding:12px 16px; border-radius:8px; margin:14px 0; font-size:14px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media(max-width:640px){ .grid{grid-template-columns:1fr} nav.toc ol{columns:1} }
+  .card { border:1px solid #e2e8f0; border-radius:10px; padding:14px 16px; background:#fafafa; }
+  .card h4 { margin:0 0 6px; color:#0f766e; }
+  ul,ol { padding-left:22px; } li { margin:5px 0; }
+  footer { text-align:center; color:#64748b; font-size:13px; padding:20px; }
+  .tag { font-size:12px; color:#64748b; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Production-Grade CDC Data Lake Pipeline</h1>
+    <p>Complete Project Requirements &mdash; e-commerce OLTP &rarr; Analytics Lakehouse</p>
+    <p style="color:#cffafe;">Aurora PostgreSQL &middot; DMS &middot; Kinesis &middot; S3 &middot; Glue/PySpark &middot; Apache Iceberg &middot; Step Functions &middot; Athena</p>
+    <p style="color:#cffafe;">Owner: Rahul Singh Rana &nbsp;·&nbsp; Legend:
+      <span class="pill must">MUST</span>
+      <span class="pill should">SHOULD</span></p>
+  </div>
+</header>
+
+<main>
+
+  <nav class="toc">
+    <h2>Requirement Index (30 areas)</h2>
+    <ol>
+      <li><a href="#r1">Project Objective</a></li>
+      <li><a href="#r2">Business Scenario &amp; SLA</a></li>
+      <li><a href="#r3">Source Database</a></li>
+      <li><a href="#r4">CDC Ingestion (DMS)</a></li>
+      <li><a href="#r5">High-Volume / Festival Traffic</a></li>
+      <li><a href="#r6">Bronze Data Lake</a></li>
+      <li><a href="#r7">Silver Layer (Iceberg)</a></li>
+      <li><a href="#r8">CDC Ordering</a></li>
+      <li><a href="#r9">Idempotency</a></li>
+      <li><a href="#r10">DELETE Handling</a></li>
+      <li><a href="#r11">Data Quality</a></li>
+      <li><a href="#r12">Reject / Quarantine Layer</a></li>
+      <li><a href="#r13">Schema Evolution</a></li>
+      <li><a href="#r14">Orchestration</a></li>
+      <li><a href="#r15">Retry Strategy</a></li>
+      <li><a href="#r16">Failure Recovery</a></li>
+      <li><a href="#r17">Replayability</a></li>
+      <li><a href="#r18">Gold Layer</a></li>
+      <li><a href="#r19">Audit System</a></li>
+      <li><a href="#r20">Monitoring</a></li>
+      <li><a href="#r21">Notification</a></li>
+      <li><a href="#r22">Security</a></li>
+      <li><a href="#r23">Infrastructure as Code</a></li>
+      <li><a href="#r24">CI/CD</a></li>
+      <li><a href="#r25">Testing</a></li>
+      <li><a href="#r26">Scalability</a></li>
+      <li><a href="#r27">Performance</a></li>
+      <li><a href="#r28">Cost</a></li>
+      <li><a href="#r29">Documentation</a></li>
+      <li><a href="#r30">Final Technology Stack</a></li>
+    </ol>
+  </nav>
+
+  <section id="r1">
+    <h2>1. Project Objective</h2>
+    <p>Build a production-grade <b>CDC Data Lake Pipeline</b> for an e-commerce platform that
+       continuously captures changes from an OLTP database and makes the data available for analytics.</p>
+    <p>The system <span class="pill must">MUST</span> handle:</p>
+    <div class="grid">
+      <div class="card"><h4>Workload variety</h4>
+        <ul><li>Normal transaction volumes</li><li>Sudden festival/promotional spikes</li>
+            <li>INSERT, UPDATE, DELETE operations</li><li>Duplicate &amp; out-of-order events</li></ul></div>
+      <div class="card"><h4>Resilience &amp; ops</h4>
+        <ul><li>Schema evolution</li><li>Processing failures</li><li>Data-quality failures</li>
+            <li>Replay &amp; recovery</li><li>Monitoring &amp; alerting</li></ul></div>
+    </div>
+    <div class="callout">Design goals: <b>reliability, scalability, fault tolerance, security,
+      observability, maintainability</b>.</div>
+  </section>
+
+  <section id="r2">
+    <h2>2. Business Scenario &amp; SLA</h2>
+    <p>Source system is an e-commerce application. On normal days transaction volume is manageable.
+       During <b>Diwali, big sales, flash sales, promotional campaigns</b>, volume can spike sharply
+       within a short period. The architecture <span class="pill must">MUST</span> absorb bursty
+       workloads <b>without losing data</b>.</p>
+    <h3>Initial target SLA</h3>
+    <div class="callout"><b>CDC changes should become available in the analytical Silver layer within
+      ~15 minutes under normal operating conditions</b>, while the system remains capable of absorbing
+      temporary traffic spikes.</div>
+  </section>
+
+  <section id="r3">
+    <h2>3. Source Database</h2>
+    <p><span class="pill svc">Amazon Aurora PostgreSQL</span></p>
+    <h3>Tables</h3>
+    <p><code>customers</code> · <code>products</code> · <code>orders</code> · <code>order_items</code> · <code>payments</code></p>
+    <h3>Example: <code>orders</code></h3>
+    <table>
+      <tr><th>Column</th><th>Notes</th></tr>
+      <tr><td>order_id</td><td>primary key</td></tr>
+      <tr><td>customer_id</td><td>FK &rarr; customers</td></tr>
+      <tr><td>order_date</td><td>timestamp</td></tr>
+      <tr><td>order_amount</td><td>numeric &ge; 0</td></tr>
+      <tr><td>status</td><td>PLACED / SHIPPED / DELIVERED / CANCELLED</td></tr>
+      <tr><td>updated_at</td><td>row update timestamp</td></tr>
+    </table>
+    <p>The database generates <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code> events.</p>
+  </section>
+
+  <section id="r4">
+    <h2>4. CDC Ingestion</h2>
+    <p><span class="pill svc">AWS Database Migration Service (DMS)</span> <span class="pill must">MUST</span> support:</p>
+    <div class="grid">
+      <div class="card"><h4>Initial Load</h4>
+        <div class="flow"><span class="node">Aurora PostgreSQL</span><span class="arrow">&rarr;</span>
+          <span class="node">DMS</span><span class="arrow">&rarr;</span><span class="node">S3</span></div></div>
+      <div class="card"><h4>Ongoing CDC</h4>
+        <div class="flow"><span class="node">Aurora PostgreSQL</span><span class="arrow">&rarr;</span>
+          <span class="node">DMS</span><span class="arrow">&rarr;</span><span class="node">Kinesis Data Streams</span></div></div>
+    </div>
+    <h3>CDC metadata to preserve where available</h3>
+    <ul>
+      <li>Transaction information</li><li>LSN / source position</li><li>Commit timestamp</li>
+      <li>Operation type</li><li>Source table</li><li>Record key</li>
+    </ul>
+  </section>
+
+  <section id="r5">
+    <h2>5. High-Volume / Festival Traffic Requirement</h2>
+    <p>The pipeline <span class="pill must">MUST</span> handle sudden increases in CDC traffic.</p>
+    <table>
+      <tr><th>Condition</th><th>Approx volume</th></tr>
+      <tr><td>Normal</td><td>5,000 events/min</td></tr>
+      <tr><td>Festival</td><td>100,000 events/min</td></tr>
+    </table>
+    <p>The architecture must <b>not</b> assume the processing layer can always keep pace with arrival rate.</p>
+    <h3>Kinesis as buffer</h3>
+    <div class="flow"><span class="node">DMS</span><span class="arrow">&rarr;</span>
+      <span class="node">Kinesis</span><span class="arrow">&rarr;</span><span class="node">S3 / Processing</span></div>
+    <div class="callout"><b>Critical:</b> temporary processing slowdown must <b>not</b> result in data loss.
+      The system should monitor consumer lag and scale processing appropriately.</div>
+  </section>
+
+  <section id="r6">
+    <h2>6. Bronze Data Lake</h2>
+    <p><span class="pill svc">Amazon S3</span> — Bronze contains immutable/raw CDC data.</p>
+    <pre>s3://cdc-lake/bronze/
+  orders/   year=2026/ month=09/ day=19/ hour=17/
+  customers/
+  products/
+  payments/</pre>
+    <table>
+      <tr><th>Requirement</th><th>Detail</th></tr>
+      <tr><td>Immutable storage</td><td>append-only, never mutated in place</td></tr>
+      <tr><td>Partitioned data</td><td>year/month/day/hour</td></tr>
+      <tr><td>Parquet where appropriate</td><td>columnar for downstream reads</td></tr>
+      <tr><td>Raw CDC metadata retained</td><td>op, LSN, commit ts, txn id, key</td></tr>
+      <tr><td>Historical retention</td><td>enables replay</td></tr>
+      <tr><td>Replay capability</td><td>reproduce downstream from Bronze</td></tr>
+    </table>
+  </section>
+
+  <section id="r7">
+    <h2>7. Silver Layer</h2>
+    <p><span class="pill svc">Apache Iceberg</span> — Silver represents the <b>current state</b> of the source.</p>
+    <pre>101 &rarr; INSERT &rarr; PLACED
+101 &rarr; UPDATE &rarr; SHIPPED
+101 &rarr; UPDATE &rarr; DELIVERED
+------------------------------
+Silver:   101 | DELIVERED</pre>
+    <p>Required operations: <b>INSERT, UPDATE, DELETE, MERGE</b>.</p>
+    <p>Iceberg <span class="pill must">MUST</span> provide: ACID transactions, snapshot management,
+       schema evolution, time travel, reliable MERGE operations.</p>
+  </section>
+
+  <section id="r8">
+    <h2>8. CDC Ordering</h2>
+    <p>The pipeline <span class="pill must">MUST</span> correctly handle multiple changes to the same record.</p>
+    <div class="flow"><span class="node">PLACED</span><span class="arrow">&rarr;</span>
+      <span class="node">SHIPPED</span><span class="arrow">&rarr;</span><span class="node">DELIVERED</span></div>
+    <p>If events arrive out of order, <b>source transaction / LSN / commit-timestamp metadata</b> must be used
+       to determine the correct sequence. An older event must <b>never</b> overwrite a newer state.</p>
+  </section>
+
+  <section id="r9">
+    <h2>9. Idempotency</h2>
+    <p>Processing <span class="pill must">MUST</span> be idempotent. If the same CDC event is processed twice,
+       the target must not become corrupted or contain unintended duplicates.</p>
+    <p>Maintain suitable: event/source identifier, source position, transaction metadata, and processing
+       metadata for deduplication.</p>
+  </section>
+
+  <section id="r10">
+    <h2>10. DELETE Handling</h2>
+    <p>DELETE events <span class="pill must">MUST</span> be explicitly handled.
+       The corresponding current-state Silver record must be removed according to the defined
+       retention/business rules. Deletes must not silently disappear during transformation.</p>
+  </section>
+
+  <section id="r11">
+    <h2>11. Data Quality</h2>
+    <p>The pipeline <span class="pill must">MUST</span> perform automated data-quality checks.</p>
+    <pre>order_id      IS NOT NULL
+customer_id  IS NOT NULL
+order_amount &gt;= 0
+status IN ('PLACED','SHIPPED','DELIVERED','CANCELLED')</pre>
+    <p>Checks should cover: null mandatory fields, invalid data types, duplicate records,
+       invalid status values, invalid timestamps, invalid CDC operations, and referential/business-rule
+       violations where applicable.</p>
+  </section>
+
+  <section id="r12">
+    <h2>12. Reject / Quarantine Layer</h2>
+    <p>Invalid records should not necessarily stop the complete pipeline. Use <span class="pill svc">S3 Reject</span>.</p>
+    <pre>s3://cdc-lake/reject/</pre>
+    <p>Each rejected record <span class="pill must">MUST</span> contain:
+       <code>original_event</code>, <code>error_reason</code>, <code>table_name</code>,
+       <code>processing_time</code>, <code>batch_id</code>.</p>
+  </section>
+
+  <section id="r13">
+    <h2>13. Schema Evolution</h2>
+    <p>The pipeline <span class="pill must">MUST</span> detect and handle source schema changes
+       (e.g. new column <code>coupon_code</code> added). Additive changes support controlled evolution.</p>
+    <h3>Breaking changes</h3>
+    <div class="flow"><span class="node">detect</span><span class="arrow">&rarr;</span>
+      <span class="node">stop affected processing</span><span class="arrow">&rarr;</span>
+      <span class="node">record error</span><span class="arrow">&rarr;</span><span class="node">send notification</span></div>
+    <p>Incompatible type changes must be detected and halted rather than silently corrupting data.</p>
+  </section>
+
+  <section id="r14">
+    <h2>14. Orchestration</h2>
+    <p><span class="pill svc">Amazon EventBridge + AWS Step Functions</span></p>
+    <div class="flow" style="line-height:2;">
+      <span class="node">EventBridge</span><span class="arrow">&rarr;</span>
+      <span class="node">Step Functions</span><span class="arrow">&rarr;</span>
+      <span class="node">Check input</span><span class="arrow">&rarr;</span>
+      <span class="node">Process CDC</span><span class="arrow">&rarr;</span>
+      <span class="node">Validate</span><span class="arrow">&rarr;</span>
+      <span class="node">Deduplicate</span><span class="arrow">&rarr;</span>
+      <span class="node">Apply CDC</span><span class="arrow">&rarr;</span>
+      <span class="node">Update Iceberg</span><span class="arrow">&rarr;</span>
+      <span class="node">Data Quality</span><span class="arrow">&rarr;</span>
+      <span class="node">Gold Processing</span><span class="arrow">&rarr;</span>
+      <span class="node">Audit</span><span class="arrow">&rarr;</span>
+      <span class="node">SUCCESS</span>
+    </div>
+    <p>Step Functions must manage: workflow orchestration, retries, timeout handling,
+       conditional branches, failure handling, job dependencies, execution status.</p>
+  </section>
+
+  <section id="r15">
+    <h2>15. Retry Strategy</h2>
+    <p>Transient failures <span class="pill should">SHOULD</span> automatically retry with backoff.</p>
+    <div class="flow"><span class="node">Glue failure</span><span class="arrow">&rarr;</span>
+      <span class="node">Retry #1</span><span class="arrow">&rarr;</span>
+      <span class="node">Retry #2</span><span class="arrow">&rarr;</span>
+      <span class="node">Retry #3</span><span class="arrow">&rarr;</span>
+      <span class="node">Still failed</span><span class="arrow">&rarr;</span>
+      <span class="node">SNS Alert</span></div>
+    <p>Retries remain safe because downstream processing is idempotent.</p>
+  </section>
+
+  <section id="r16">
+    <h2>16. Failure Recovery</h2>
+    <p>The pipeline <span class="pill must">MUST</span> recover from: Glue failures, network failures,
+       temporary AWS service failures, invalid records, processing timeouts, schema changes,
+       downstream failures.</p>
+    <div class="callout">A failed pipeline <b>must be restartable without manually fixing the target tables</b>.</div>
+  </section>
+
+  <section id="r17">
+    <h2>17. Replayability</h2>
+    <p>Bronze data <span class="pill must">MUST</span> allow downstream reconstruction.</p>
+    <div class="flow"><span class="node">Silver corrupted</span><span class="arrow">&rarr;</span>
+      <span class="node">Read historical Bronze</span><span class="arrow">&rarr;</span>
+      <span class="node">Reprocess</span><span class="arrow">&rarr;</span><span class="node">Rebuild Silver</span></div>
+    <p>Support: full replay, date-based replay, partition replay, batch replay, failed-batch replay.</p>
+  </section>
+
+  <section id="r18">
+    <h2>18. Gold Layer</h2>
+    <p>Create business-oriented analytical tables optimized for analytical queries.</p>
+    <table>
+      <tr><th>Table</th><th>Purpose</th></tr>
+      <tr><td>gold_daily_sales</td><td>date, total_orders, delivered_orders, cancelled_orders, total_revenue, average_order_value</td></tr>
+      <tr><td>gold_customer_metrics</td><td>per-customer aggregates</td></tr>
+      <tr><td>gold_product_metrics</td><td>per-product aggregates</td></tr>
+      <tr><td>gold_order_status</td><td>status distribution over time</td></tr>
+    </table>
+  </section>
+
+  <section id="r19">
+    <h2>19. Audit System</h2>
+    <p><span class="pill svc">Amazon DynamoDB</span> — maintain pipeline execution metadata.</p>
+    <table>
+      <tr><th>Field</th><th>Field</th><th>Field</th></tr>
+      <tr><td>batch_id</td><td>table_name</td><td>start_time / end_time</td></tr>
+      <tr><td>source_records</td><td>processed_records</td><td>insert_count</td></tr>
+      <tr><td>update_count</td><td>delete_count</td><td>duplicate_count</td></tr>
+      <tr><td>reject_count</td><td>status</td><td>error_message</td></tr>
+    </table>
+    <pre>Batch: 20260919_1800
+Received:  52,481   Inserted: 8,200   Updated: 42,100
+Deleted:    1,500   Duplicates:  420  Rejected:   261
+Status: SUCCESS</pre>
+  </section>
+
+  <section id="r20">
+    <h2>20. Monitoring</h2>
+    <p><span class="pill svc">Amazon CloudWatch</span></p>
+    <div class="grid">
+      <div class="card"><h4>Infrastructure</h4>
+        <ul><li>DMS health</li><li>Kinesis throughput</li><li>Kinesis consumer lag</li>
+            <li>Glue jobs</li><li>Step Functions executions</li></ul></div>
+      <div class="card"><h4>Data pipeline</h4>
+        <ul><li>records received / processed / rejected</li>
+            <li>insert / update / delete / duplicate counts</li>
+            <li>processing latency</li><li>CDC lag</li></ul></div>
+    </div>
+  </section>
+
+  <section id="r21">
+    <h2>21. Notification</h2>
+    <p><span class="pill svc">Amazon SNS</span> — critical notifications for: DMS failure, Kinesis processing failure,
+       Glue failure, Step Functions failure, high CDC lag, data-quality failure, schema-breaking change,
+       excessive rejected records, SLA breach.</p>
+    <pre>CDC Pipeline Failure
+Pipeline: orders-cdc   Environment: PROD   Stage: Silver Processing
+Records received: 52,481   Processed: 51,920   Rejected: 561
+Error: Iceberg MERGE failed   Retry attempts: 3
+Action: Manual investigation required</pre>
+    <div class="callout">Normal successful executions should be tracked via CloudWatch/DynamoDB
+      rather than generating excessive notifications.</div>
+  </section>
+
+  <section id="r22">
+    <h2>22. Security</h2>
+    <div class="grid">
+      <div class="card"><h4>Implement <span class="pill must">MUST</span></h4>
+        <ul><li>IAM least privilege</li><li>KMS encryption</li><li>S3 encryption</li>
+            <li>S3 Block Public Access</li><li>Secrets Manager</li>
+            <li>Secure database connectivity</li>
+            <li>Proper IAM roles for DMS/Glue/Step Functions</li>
+            <li>CloudTrail auditing where appropriate</li></ul></div>
+      <div class="card"><h4>Never store in GitHub</h4>
+        <ul><li>AWS access keys ❌</li><li>Passwords ❌</li>
+            <li>Database credentials ❌</li><li>Secrets ❌</li></ul></div>
+    </div>
+  </section>
+
+  <section id="r23">
+    <h2>23. Infrastructure as Code</h2>
+    <p><span class="pill svc">Terraform</span> — infrastructure must be reproducible. Manage as applicable:
+       S3, DMS, Kinesis, Glue, IAM, Step Functions, EventBridge, DynamoDB, SNS, KMS, CloudWatch.</p>
+    <div class="callout">Avoid creating the complete production environment manually through the AWS Console.</div>
+  </section>
+
+  <section id="r24">
+    <h2>24. CI/CD</h2>
+    <p><span class="pill svc">GitHub Actions</span></p>
+    <div class="flow"><span class="node">Git Push</span><span class="arrow">&rarr;</span>
+      <span class="node">Unit Tests</span><span class="arrow">&rarr;</span>
+      <span class="node">Lint / Code Validation</span><span class="arrow">&rarr;</span>
+      <span class="node">Terraform Validate</span><span class="arrow">&rarr;</span>
+      <span class="node">Build</span><span class="arrow">&rarr;</span><span class="node">Deploy</span></div>
+    <p>The deployment process should be repeatable.</p>
+  </section>
+
+  <section id="r25">
+    <h2>25. Testing</h2>
+    <h3>Unit testing</h3>
+    <p>CDC parsing · deduplication · ordering · transformation · validation.</p>
+    <h3>Integration testing</h3>
+    <div class="flow"><span class="node">Aurora</span><span class="arrow">&rarr;</span>
+      <span class="node">DMS</span><span class="arrow">&rarr;</span><span class="node">Kinesis</span><span class="arrow">&rarr;</span>
+      <span class="node">S3</span><span class="arrow">&rarr;</span><span class="node">Glue</span><span class="arrow">&rarr;</span>
+      <span class="node">Iceberg</span></div>
+    <h3>Mandatory scenarios</h3>
+    <p>INSERT · UPDATE · DELETE · duplicate CDC event · out-of-order event · late event · invalid record ·
+       schema addition · schema-breaking change · job failure · job retry · replay · festival traffic spike.</p>
+  </section>
+
+  <section id="r26">
+    <h2>26. Scalability</h2>
+    <p>The system <span class="pill should">SHOULD</span> scale independently at different stages.</p>
+    <div class="flow"><span class="node">CDC ingestion</span><span class="arrow">&rarr;</span>
+      <span class="node">Kinesis</span><span class="arrow">&rarr;</span>
+      <span class="node">Processing</span><span class="arrow">&rarr;</span><span class="node">S3/Iceberg</span></div>
+    <p>Peak traffic should not require permanently running maximum compute. Allow: Kinesis shard scaling,
+       parallel processing, partition-based processing, Spark worker scaling, independent downstream scaling.</p>
+  </section>
+
+  <section id="r27">
+    <h2>27. Performance Requirements</h2>
+    <p>Track and optimize: CDC ingestion throughput, Kinesis lag, S3 write throughput, Glue processing duration,
+       Iceberg MERGE performance, Athena query performance.</p>
+    <p>Partitioning and file sizes should avoid excessive small files. Iceberg maintenance should include
+       <b>compaction, snapshot cleanup, orphan-file cleanup</b> according to retention policy.</p>
+  </section>
+
+  <section id="r28">
+    <h2>28. Cost Requirements</h2>
+    <div class="grid">
+      <div class="card"><h4>Avoid</h4>
+        <ul><li>Unnecessary always-on compute</li><li>Excessive Kinesis capacity</li>
+            <li>Excessive CloudWatch log retention</li><li>Uncontrolled S3 storage growth</li>
+            <li>Excessive Athena scans</li></ul></div>
+      <div class="card"><h4>Use appropriate</h4>
+        <ul><li>S3 lifecycle policies</li><li>Iceberg maintenance</li><li>CloudWatch retention</li>
+            <li>Kinesis capacity planning</li><li>Glue job sizing</li></ul></div>
+    </div>
+  </section>
+
+  <section id="r29">
+    <h2>29. Documentation</h2>
+    <p>GitHub README <span class="pill must">MUST</span> document: business problem, architecture, AWS services,
+       data flow, CDC strategy, Kinesis strategy, Bronze/Silver/Gold design, Iceberg design, idempotency,
+       ordering, schema evolution, data quality, failure recovery, replay, orchestration, monitoring,
+       notifications, security, Terraform, CI/CD, testing, cost considerations, troubleshooting, and
+       design decisions &amp; trade-offs.</p>
+  </section>
+
+  <section id="r30">
+    <h2>30. Final Technology Stack</h2>
+    <table>
+      <tr><th>Area</th><th>Technology</th></tr>
+      <tr><td>OLTP</td><td>Aurora PostgreSQL</td></tr>
+      <tr><td>CDC</td><td>AWS DMS</td></tr>
+      <tr><td>Streaming / Buffer</td><td>Kinesis Data Streams</td></tr>
+      <tr><td>Data Lake</td><td>Amazon S3</td></tr>
+      <tr><td>Processing</td><td>AWS Glue + PySpark</td></tr>
+      <tr><td>Table Format</td><td>Apache Iceberg</td></tr>
+      <tr><td>Orchestration</td><td>Step Functions</td></tr>
+      <tr><td>Triggering</td><td>EventBridge</td></tr>
+      <tr><td>Audit</td><td>DynamoDB</td></tr>
+      <tr><td>Monitoring</td><td>CloudWatch</td></tr>
+      <tr><td>Notification</td><td>SNS</td></tr>
+      <tr><td>Secrets</td><td>Secrets Manager</td></tr>
+      <tr><td>Encryption</td><td>KMS</td></tr>
+      <tr><td>Query</td><td>Athena</td></tr>
+      <tr><td>IaC</td><td>Terraform</td></tr>
+      <tr><td>CI/CD</td><td>GitHub Actions</td></tr>
+      <tr><td>Testing</td><td>PyTest</td></tr>
+    </table>
+    <h3>Final architecture</h3>
+    <pre>Aurora PostgreSQL (OLTP)
+        &darr; CDC
+   AWS DMS (Full Load + CDC)
+        &darr;
+ Kinesis Data Streams (Burst Buffer)
+        &darr;
+   S3 BRONZE (Immutable CDC)
+        &darr;
+ Glue + PySpark  (Dedup · Ordering · Validation · CDC MERGE)
+        &darr;
+ Iceberg SILVER (Current State)
+        &darr;
+      GOLD (Analytics Tables)
+        &darr;
+      Athena
+
+ORCHESTRATION:  EventBridge &rarr; Step Functions &rarr; Glue &rarr; DQ
+OBSERVABILITY:  CloudWatch + DynamoDB Audit
+NOTIFICATION:   SNS &rarr; Email / Operational Alert
+Terraform &rarr; Infrastructure     GitHub Actions &rarr; CI/CD</pre>
+  </section>
+
+</main>
+
+<footer>Production-Grade CDC Data Lake Pipeline — Complete Requirements &nbsp;·&nbsp; Owner: Rahul Singh Rana</footer>
+</body>
+</html>

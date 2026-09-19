@@ -1,0 +1,67 @@
+# ---------------------------------------------------------------------------
+# CDC Data Lake — pipeline configuration (data-driven).
+#
+# Top-level infra values (buckets, ARNs, DB name) are placeholders here and are
+# overridden at runtime by environment variables that Terraform / the Glue job
+# supplies (CDC_BRONZE_BUCKET, CDC_SILVER_WAREHOUSE, CDC_REJECT_PREFIX,
+# CDC_GLUE_DATABASE, CDC_AUDIT_TABLE, CDC_SNS_TOPIC_ARN, CDC_ENVIRONMENT).
+#
+# Adding a new source table = add a block under `tables` (no code change).
+# ---------------------------------------------------------------------------
+environment: dev
+bronze_bucket: s3://REPLACE-cdc-lake-bronze
+silver_warehouse: s3://REPLACE-cdc-lake-silver
+reject_prefix: s3://REPLACE-cdc-lake-reject
+glue_database: cdc_silver
+audit_table: cdc_pipeline_audit
+sns_topic_arn: "arn:aws:sns:REPLACE:REPLACE:cdc-pipeline-alerts"
+
+tables:
+
+  orders:
+    primary_keys: [order_id]
+    order_by: [__commit_ts, __txn_id, __seq]
+    silver_table: cdc_silver.orders
+    partition_by: []
+    dq_rules:
+      - { column: order_id,     kind: not_null }
+      - { column: customer_id,  kind: not_null }
+      - { column: order_amount, kind: non_negative }
+      - { column: status,       kind: allowed_values, values: [PLACED, SHIPPED, DELIVERED, CANCELLED] }
+      - { column: order_date,   kind: valid_timestamp }
+
+  customers:
+    primary_keys: [customer_id]
+    order_by: [__commit_ts, __txn_id, __seq]
+    silver_table: cdc_silver.customers
+    dq_rules:
+      - { column: customer_id, kind: not_null }
+      - { column: email,       kind: not_null }
+
+  products:
+    primary_keys: [product_id]
+    order_by: [__commit_ts, __txn_id, __seq]
+    silver_table: cdc_silver.products
+    dq_rules:
+      - { column: product_id, kind: not_null }
+      - { column: price,      kind: non_negative }
+
+  order_items:
+    primary_keys: [order_item_id]
+    order_by: [__commit_ts, __txn_id, __seq]
+    silver_table: cdc_silver.order_items
+    dq_rules:
+      - { column: order_item_id, kind: not_null }
+      - { column: order_id,      kind: not_null }
+      - { column: product_id,    kind: not_null }
+      - { column: quantity,      kind: non_negative }
+
+  payments:
+    primary_keys: [payment_id]
+    order_by: [__commit_ts, __txn_id, __seq]
+    silver_table: cdc_silver.payments
+    dq_rules:
+      - { column: payment_id, kind: not_null }
+      - { column: order_id,   kind: not_null }
+      - { column: amount,     kind: non_negative }
+      - { column: status,     kind: allowed_values, values: [PENDING, COMPLETED, FAILED, REFUNDED] }
