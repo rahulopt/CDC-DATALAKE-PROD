@@ -1,0 +1,161 @@
+{
+  "Comment": "CDC Data Lake orchestration: check -> silver MERGE (per table, parallel) -> gold -> success; with retries, timeouts and failure notification.",
+  "StartAt": "CheckInput",
+  "States": {
+    "CheckInput": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${check_input_arn}",
+        "Payload.$": "$"
+      },
+      "ResultSelector": {
+        "has_data.$": "$.Payload.has_data",
+        "object_count.$": "$.Payload.object_count"
+      },
+      "ResultPath": "$.check",
+      "TimeoutSeconds": 60,
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.TooManyRequestsException", "Lambda.Unknown"],
+          "IntervalSeconds": 3,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "NotifyFailure"
+        }
+      ],
+      "Next": "HasData"
+    },
+
+    "HasData": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.check.has_data",
+          "BooleanEquals": true,
+          "Next": "ProcessTables"
+        }
+      ],
+      "Default": "NoData"
+    },
+
+    "NoData": {
+      "Type": "Succeed",
+      "Comment": "Nothing to process for this batch — benign success, no alert."
+    },
+
+    "ProcessTables": {
+      "Type": "Map",
+      "ItemsPath": "$.tables",
+      "MaxConcurrency": 3,
+      "Parameters": {
+        "table_name.$": "$$.Map.Item.Value",
+        "batch_id.$": "$.batch_id"
+      },
+      "Iterator": {
+        "StartAt": "SilverMerge",
+        "States": {
+          "SilverMerge": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::glue:startJobRun.sync",
+            "Parameters": {
+              "JobName": "${silver_job_name}",
+              "Arguments": {
+                "--table_name.$": "$.table_name",
+                "--batch_id.$": "$.batch_id",
+                "--bronze_path.$": "States.Format('s3://${bronze_bucket}/bronze/{}/', $.table_name)"
+              }
+            },
+            "TimeoutSeconds": 3600,
+            "Retry": [
+              {
+                "ErrorEquals": ["Glue.ConcurrentRunsExceededException", "Glue.InternalServiceException", "States.Timeout"],
+                "IntervalSeconds": 30,
+                "MaxAttempts": 3,
+                "BackoffRate": 2.0
+              }
+            ],
+            "Catch": [
+              {
+                "ErrorEquals": ["States.ALL"],
+                "ResultPath": "$.error",
+                "Next": "TableFailed"
+              }
+            ],
+            "End": true
+          },
+          "TableFailed": {
+            "Type": "Fail",
+            "Error": "SilverMergeFailed",
+            "Cause": "Silver CDC MERGE failed after retries for this table."
+          }
+        }
+      },
+      "ResultPath": "$.silver_results",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "NotifyFailure"
+        }
+      ],
+      "Next": "GoldAggregates"
+    },
+
+    "GoldAggregates": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "${gold_job_name}"
+      },
+      "TimeoutSeconds": 1800,
+      "Retry": [
+        {
+          "ErrorEquals": ["Glue.ConcurrentRunsExceededException", "Glue.InternalServiceException", "States.Timeout"],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "NotifyFailure"
+        }
+      ],
+      "Next": "PipelineSucceeded"
+    },
+
+    "PipelineSucceeded": {
+      "Type": "Succeed"
+    },
+
+    "NotifyFailure": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${notify_arn}",
+        "Payload": {
+          "table_name.$": "$.table_name",
+          "batch_id.$": "$.batch_id",
+          "stage": "CDC Pipeline",
+          "error.$": "$.error"
+        }
+      },
+      "Next": "PipelineFailed"
+    },
+
+    "PipelineFailed": {
+      "Type": "Fail",
+      "Error": "CDCPipelineFailed",
+      "Cause": "See SNS alert and DynamoDB audit for details."
+    }
+  }
+}
